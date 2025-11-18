@@ -35,13 +35,15 @@ wheels/
 
 # Data files (large files)
 raw_data/
-processed_data/*.geojson
+# Allow specific processed data files for deployment
+# processed_data/*.geojson
 processed_data/*.shp
 processed_data/*.tif
 
 # Models (can be large)
-models/*.h5
-models/*.pkl
+# Allow specific model files for deployment
+# models/*.h5
+# models/*.pkl
 models/*.joblib
 
 # Environment variables
