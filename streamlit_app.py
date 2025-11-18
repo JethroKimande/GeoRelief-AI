@@ -6,13 +6,12 @@ Interactive visualization and analytics platform for humanitarian resource alloc
 import streamlit as st
 import geopandas as gpd
 import pandas as pd
-import numpy as np
 import folium
-from streamlit_folium import st_folium
+from streamlit_folium import st_folium  # type: ignore
 import plotly.express as px
-import plotly.graph_objects as go
 from pathlib import Path
 import sys
+from typing import Optional, Union, Any
 
 # Add parent directory to path to import core module
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -87,12 +86,12 @@ def load_data():
             return None
     return None
 
-def get_color(score, min_score, max_score):
+def get_color(score: float, min_score: float, max_score: float) -> str:
     """Get color based on priority score"""
     if max_score == min_score:
         return '#91cf60'
     
-    normalized = (score - min_score) / (max_score - min_score) * 100
+    normalized: float = (score - min_score) / (max_score - min_score) * 100
     
     if normalized > 80:
         return '#d73027'  # Critical - Red
@@ -105,7 +104,7 @@ def get_color(score, min_score, max_score):
     else:
         return '#91cf60'  # Very Low - Green
 
-def create_map(gdf, predictions):
+def create_map(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> folium.Map:  # type: ignore
     """Create an interactive Folium map"""
     # Calculate center
     bounds = gdf.total_bounds
@@ -221,7 +220,7 @@ def create_map(gdf, predictions):
     
     return m
 
-def main():
+def main() -> None:
     # Header
     st.markdown('<h1 class="main-header">🌍 GeoRelief-AI</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Humanitarian Intelligence Platform | Real-time Disaster Prioritization Engine</p>', unsafe_allow_html=True)
@@ -245,8 +244,6 @@ def main():
         
         if uploaded_model or uploaded_scaler or uploaded_data:
             if st.button("💾 Save Uploaded Files", type="primary"):
-                import os
-                
                 # Create directories if they don't exist
                 config.MODEL_DIR.mkdir(parents=True, exist_ok=True)
                 config.PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -256,7 +253,7 @@ def main():
                     model_path = config.MODEL_PATH
                     with open(model_path, "wb") as f:
                         f.write(uploaded_model.getbuffer())
-                    saved_files.append(f"✅ Model saved: {model_path.name}")
+                    saved_files.append(f"✅ Model saved: {str(model_path)}")
                     st.session_state.model_engine = None  # Reset to reload
                     st.cache_resource.clear()  # Clear cache
                 
@@ -264,7 +261,7 @@ def main():
                     scaler_path = config.SCALER_PATH
                     with open(scaler_path, "wb") as f:
                         f.write(uploaded_scaler.getbuffer())
-                    saved_files.append(f"✅ Scaler saved: {scaler_path.name}")
+                    saved_files.append(f"✅ Scaler saved: {str(scaler_path)}")
                     st.session_state.model_engine = None  # Reset to reload
                     st.cache_resource.clear()  # Clear cache
                 
@@ -272,7 +269,7 @@ def main():
                     data_path = config.MASTER_DATASET_PATH
                     with open(data_path, "wb") as f:
                         f.write(uploaded_data.getbuffer())
-                    saved_files.append(f"✅ Data saved: {data_path.name}")
+                    saved_files.append(f"✅ Data saved: {str(data_path)}")
                     st.session_state.master_gdf = None  # Reset to reload
                     st.cache_data.clear()  # Clear cache
                 
@@ -381,7 +378,7 @@ def main():
     elif page == "ℹ️ About":
         show_about()
 
-def show_dashboard(gdf, predictions):
+def show_dashboard(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> None:  # type: ignore
     """Main dashboard view"""
     st.markdown("## 📊 Mission Control Dashboard")
     
@@ -471,7 +468,7 @@ def show_dashboard(gdf, predictions):
         )
         st.plotly_chart(fig, use_container_width=True)
 
-def show_map(gdf, predictions):
+def show_map(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> None:  # type: ignore
     """Interactive map view"""
     st.markdown("## 🗺️ Interactive Priority Map")
     
@@ -487,7 +484,8 @@ def show_map(gdf, predictions):
         )
     
     with col2:
-        show_satellite = st.checkbox("Show Satellite Layer", value=False)
+        # Satellite layer toggle is handled in create_map function
+        _ = st.checkbox("Show Satellite Layer", value=False, disabled=True, help="Satellite layer can be toggled on the map itself")
     
     # Filter data
     filtered_gdf = gdf[gdf['Predicted_Priority_Score'] >= min_score_filter].copy()
@@ -508,7 +506,7 @@ def show_map(gdf, predictions):
     if map_data['last_object_clicked_popup']:
         st.info("Click on a region on the map to see detailed information in the popup.")
 
-def show_analytics(gdf, predictions):
+def show_analytics(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> None:  # type: ignore
     """Analytics and insights view"""
     st.markdown("## 📈 Advanced Analytics")
     
@@ -580,7 +578,7 @@ def show_analytics(gdf, predictions):
             )
             st.plotly_chart(fig, use_container_width=True)
 
-def show_about():
+def show_about() -> None:
     """About page"""
     st.markdown("## ℹ️ About GeoRelief-AI")
     
