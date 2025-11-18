@@ -140,8 +140,23 @@ def create_map(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> folium.Map:  # 
     max_score = predictions.max()
     
     # Add GeoJSON with styling
-    for idx, row in gdf.iterrows():
-        score = predictions.iloc[idx] if isinstance(predictions, pd.Series) else predictions[idx]
+    # Use enumerate to get positional index since gdf and predictions should be aligned
+    for pos_idx, (idx, row) in enumerate(gdf.iterrows()):
+        # Use positional index to access predictions
+        if isinstance(predictions, pd.Series):
+            # If predictions is a Series, use positional index
+            if pos_idx < len(predictions):
+                score = predictions.iloc[pos_idx]
+            else:
+                # Fallback: try to use the index
+                score = predictions.get(idx, 0.0)
+        else:
+            # If predictions is an array, use positional index
+            if pos_idx < len(predictions):
+                score = float(predictions[pos_idx])
+            else:
+                score = 0.0
+        
         color = get_color(score, min_score, max_score)
         
         # Get region name (try multiple column names)
@@ -240,50 +255,6 @@ def main() -> None:
             "Select View",
             ["📊 Dashboard", "🗺️ Interactive Map", "📈 Analytics", "ℹ️ About"]
         )
-        
-        st.markdown("---")
-        st.markdown("### 📤 Upload Real Data Files")
-        st.markdown("**Upload your trained model and processed data:**")
-        
-        uploaded_model = st.file_uploader("Upload Model (.h5)", type=['h5'], key='model_upload', help="Upload your trained TensorFlow model file")
-        uploaded_scaler = st.file_uploader("Upload Scaler (.pkl)", type=['pkl'], key='scaler_upload', help="Upload your StandardScaler pickle file")
-        uploaded_data = st.file_uploader("Upload Dataset (.geojson)", type=['geojson'], key='data_upload', help="Upload your processed GeoJSON dataset")
-        
-        if uploaded_model or uploaded_scaler or uploaded_data:
-            if st.button("💾 Save Uploaded Files", type="primary"):
-                # Create directories if they don't exist
-                config.MODEL_DIR.mkdir(parents=True, exist_ok=True)
-                config.PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
-                
-                saved_files = []
-                if uploaded_model:
-                    model_path = config.MODEL_PATH
-                    with open(model_path, "wb") as f:
-                        f.write(uploaded_model.getbuffer())
-                    saved_files.append(f"✅ Model saved: {str(model_path)}")
-                    st.session_state.model_engine = None  # Reset to reload
-                    st.cache_resource.clear()  # Clear cache
-                
-                if uploaded_scaler:
-                    scaler_path = config.SCALER_PATH
-                    with open(scaler_path, "wb") as f:
-                        f.write(uploaded_scaler.getbuffer())
-                    saved_files.append(f"✅ Scaler saved: {str(scaler_path)}")
-                    st.session_state.model_engine = None  # Reset to reload
-                    st.cache_resource.clear()  # Clear cache
-                
-                if uploaded_data:
-                    data_path = config.MASTER_DATASET_PATH
-                    with open(data_path, "wb") as f:
-                        f.write(uploaded_data.getbuffer())
-                    saved_files.append(f"✅ Data saved: {str(data_path)}")
-                    st.session_state.master_gdf = None  # Reset to reload
-                    st.cache_data.clear()  # Clear cache
-                
-                for msg in saved_files:
-                    st.success(msg)
-                st.info("🔄 Reloading app with your data...")
-                st.rerun()
         
         st.markdown("---")
         st.markdown("### SDG Alignment")
@@ -530,11 +501,15 @@ def show_map(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> None:  # type: ig
     
     # Filter data
     filtered_gdf = gdf[gdf['Predicted_Priority_Score'] >= min_score_filter].copy()
-    filtered_predictions = predictions[filtered_gdf.index]
     
     if len(filtered_gdf) == 0:
         st.warning("No regions match the selected filter criteria.")
         return
+    
+    # Align predictions with filtered gdf indices
+    # Reset index to ensure positional alignment
+    filtered_gdf = filtered_gdf.reset_index(drop=True)
+    filtered_predictions = predictions[gdf['Predicted_Priority_Score'] >= min_score_filter].reset_index(drop=True)
     
     # Create and display map
     st.markdown(f"**Displaying {len(filtered_gdf)} regions**")
