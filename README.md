@@ -166,13 +166,39 @@ This will:
 
 ### 4. Launch the Platform
 
-Starts the Flask API and Interactive Leaflet Map.
+You can launch the platform using either **Streamlit** (recommended for interactive analytics) or **Flask** (for web deployment).
+
+#### Option A: Streamlit Dashboard (Recommended)
+
+Interactive dashboard with analytics, maps, and visualizations:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Access the dashboard at `http://localhost:8501`
+
+**Features:**
+- 📊 Mission Control Dashboard with key metrics
+- 🗺️ Interactive map with satellite layer toggle
+- 📈 Advanced analytics and correlation analysis
+- ℹ️ About page with project information
+
+#### Option B: Flask Web Application
+
+Traditional web application with Leaflet.js map:
 
 ```bash
 python app/app.py
 ```
 
 Access the dashboard at `http://localhost:5000`
+
+**Features:**
+- Full-screen interactive map
+- Professional glassmorphism UI
+- SDG alignment visualization
+- Real-time statistics panel
 
 ---
 
@@ -273,7 +299,11 @@ To add a new country:
 
 **Backend:** Python, Flask
 
-**Frontend:** Leaflet.js, Bootstrap
+**Frontend:** 
+- **Streamlit:** Interactive dashboard with Folium maps and Plotly charts
+- **Flask:** Traditional web app with Leaflet.js and Bootstrap
+
+**Visualization:** Folium, Plotly, Leaflet.js
 
 **APIs Integrated:** Open-Meteo (GloFAS, ERA5-Land), ArcGIS REST API, HDX
 
