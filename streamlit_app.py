@@ -72,13 +72,19 @@ def load_model():
     model_engine = get_model_engine()
     if model_engine.load_model():
         return model_engine
+    
+    # If model doesn't exist, return None (will show setup instructions)
     return None
 
 @st.cache_data
 def load_data():
     """Load the master dataset (cached)"""
     if config.MASTER_DATASET_PATH.exists():
-        return gpd.read_file(config.MASTER_DATASET_PATH)
+        try:
+            return gpd.read_file(config.MASTER_DATASET_PATH)
+        except Exception as e:
+            st.error(f"Error loading data file: {e}")
+            return None
     return None
 
 def get_color(score, min_score, max_score):
@@ -230,6 +236,52 @@ def main():
         )
         
         st.markdown("---")
+        st.markdown("### 📤 Upload Real Data Files")
+        st.markdown("**Upload your trained model and processed data:**")
+        
+        uploaded_model = st.file_uploader("Upload Model (.h5)", type=['h5'], key='model_upload', help="Upload your trained TensorFlow model file")
+        uploaded_scaler = st.file_uploader("Upload Scaler (.pkl)", type=['pkl'], key='scaler_upload', help="Upload your StandardScaler pickle file")
+        uploaded_data = st.file_uploader("Upload Dataset (.geojson)", type=['geojson'], key='data_upload', help="Upload your processed GeoJSON dataset")
+        
+        if uploaded_model or uploaded_scaler or uploaded_data:
+            if st.button("💾 Save Uploaded Files", type="primary"):
+                import os
+                
+                # Create directories if they don't exist
+                config.MODEL_DIR.mkdir(parents=True, exist_ok=True)
+                config.PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
+                
+                saved_files = []
+                if uploaded_model:
+                    model_path = config.MODEL_PATH
+                    with open(model_path, "wb") as f:
+                        f.write(uploaded_model.getbuffer())
+                    saved_files.append(f"✅ Model saved: {model_path.name}")
+                    st.session_state.model_engine = None  # Reset to reload
+                    st.cache_resource.clear()  # Clear cache
+                
+                if uploaded_scaler:
+                    scaler_path = config.SCALER_PATH
+                    with open(scaler_path, "wb") as f:
+                        f.write(uploaded_scaler.getbuffer())
+                    saved_files.append(f"✅ Scaler saved: {scaler_path.name}")
+                    st.session_state.model_engine = None  # Reset to reload
+                    st.cache_resource.clear()  # Clear cache
+                
+                if uploaded_data:
+                    data_path = config.MASTER_DATASET_PATH
+                    with open(data_path, "wb") as f:
+                        f.write(uploaded_data.getbuffer())
+                    saved_files.append(f"✅ Data saved: {data_path.name}")
+                    st.session_state.master_gdf = None  # Reset to reload
+                    st.cache_data.clear()  # Clear cache
+                
+                for msg in saved_files:
+                    st.success(msg)
+                st.info("🔄 Reloading app with your data...")
+                st.rerun()
+        
+        st.markdown("---")
         st.markdown("### SDG Alignment")
         st.markdown("""
         - **SDG 11:** Sustainable Cities
@@ -248,11 +300,56 @@ def main():
     
     # Check if data is loaded
     if st.session_state.model_engine is None or st.session_state.master_gdf is None:
-        st.error("⚠️ Model or data not found. Please ensure you have:")
+        st.error("⚠️ Model or data not found")
+        
+        st.markdown("### 📋 How to Use Real Data")
         st.markdown("""
-        1. Run data processing: `python -m core.data_processor`
-        2. Trained the model: `python scripts/1_train_model.py`
+        #### 🚀 Quick Start: Upload Files (Easiest)
+        
+        **Use the file upload section in the sidebar** (left side) to upload:
+        1. Your trained model file: `models/priority_model.h5`
+        2. Your scaler file: `models/scaler.pkl`
+        3. Your processed dataset: `processed_data/global_master_dataset.geojson`
+        
+        After uploading, click **"💾 Save Uploaded Files"** and the app will reload with your data.
+        
+        #### 📥 Generate Your Own Data (Local Setup)
+        
+        If you haven't created the model and data files yet, follow these steps locally:
+        
+        **Step 1: Download Data**
+        ```bash
+        python scripts/download_data.py
+        python scripts/download_hydrology.py
+        ```
+        
+        **Step 2: Process Data**
+        ```bash
+        python -m core.data_processor
+        ```
+        This creates: `processed_data/global_master_dataset.geojson`
+        
+        **Step 3: Train Model**
+        ```bash
+        python scripts/1_train_model.py
+        ```
+        This creates: `models/priority_model.h5` and `models/scaler.pkl`
+        
+        **Step 4: Upload to Streamlit Cloud**
+        - Use the file upload section in the sidebar
+        - Or commit files to your repository (if not too large)
         """)
+        
+        st.markdown("---")
+        st.markdown("### 📚 Documentation")
+        st.markdown("""
+        - **README.md**: Complete setup guide
+        - **DATA_ACQUISITION_GUIDE.md**: Detailed data download instructions
+        - **QUICK_START_REAL_DATA.md**: Quick start guide
+        """)
+        
+        st.info("💡 **Tip**: For local development, ensure you've completed the setup steps above. For Streamlit Cloud, you'll need to upload the model and data files or configure cloud storage access.")
+        
         return
     
     gdf = st.session_state.master_gdf.copy()
