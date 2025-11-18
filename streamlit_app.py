@@ -144,10 +144,17 @@ def create_map(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> folium.Map:  # 
         score = predictions.iloc[idx] if isinstance(predictions, pd.Series) else predictions[idx]
         color = get_color(score, min_score, max_score)
         
+        # Get region name (try multiple column names)
+        region_name = 'Unknown Region'
+        for col_name in ['ADM1_EN', 'NAME_1', 'NAME', 'COUNTRY', 'GID_1']:
+            if col_name in row and pd.notna(row.get(col_name)):
+                region_name = str(row[col_name])
+                break
+        
         # Create popup content
         popup_html = f"""
         <div style="width: 250px;">
-            <h4 style="margin: 0 0 10px 0; color: #2c3e50;">{row.get('ADM1_EN', row.get('NAME_1', 'Unknown Region'))}</h4>
+            <h4 style="margin: 0 0 10px 0; color: #2c3e50;">{region_name}</h4>
             <table style="width: 100%; font-size: 12px;">
                 <tr>
                     <td><b>Priority Score:</b></td>
@@ -196,7 +203,7 @@ def create_map(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> folium.Map:  # 
                 'dashArray': '3'
             },
             popup=folium.Popup(popup_html, max_width=300),
-            tooltip=f"{row.get('ADM1_EN', row.get('NAME_1', 'Unknown'))}: {score:.2f}"
+            tooltip=f"{region_name}: {score:.2f}"
         ).add_to(m)
     
     # Add legend
@@ -420,18 +427,49 @@ def show_dashboard(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> None:  # ty
     
     # Top Priority Regions
     st.markdown("### 🚨 Top Priority Regions")
-    top_regions = gdf.nlargest(10, 'Predicted_Priority_Score')[
-        ['ADM1_EN', 'NAME_1', 'Predicted_Priority_Score', 'Priority_Score_Normalized', 
-         'population_density', 'vulnerability_index', 'base_flood_risk']
-    ].copy()
     
-    # Rename columns for display
-    top_regions.columns = ['Admin Name', 'Name', 'Priority Score', 'Normalized Score', 
-                          'Pop. Density', 'Vulnerability', 'Flood Risk']
-    top_regions['Normalized Score'] = top_regions['Normalized Score'].round(1)
-    top_regions['Pop. Density'] = top_regions['Pop. Density'].round(0).astype(int)
-    top_regions['Vulnerability'] = top_regions['Vulnerability'].round(2)
-    top_regions['Flood Risk'] = (top_regions['Flood Risk'] * 100).round(1)
+    # Find the region name column (try multiple possible names)
+    region_col = None
+    for col_name in ['ADM1_EN', 'NAME_1', 'NAME', 'COUNTRY', 'GID_1']:
+        if col_name in gdf.columns:
+            region_col = col_name
+            break
+    
+    # Select available columns
+    display_cols = []
+    col_names = []
+    
+    if region_col:
+        display_cols.append(region_col)
+        col_names.append('Region Name')
+    
+    # Add other columns if they exist
+    for col, display_name in [
+        ('Predicted_Priority_Score', 'Priority Score'),
+        ('Priority_Score_Normalized', 'Normalized Score'),
+        ('population_density', 'Pop. Density'),
+        ('vulnerability_index', 'Vulnerability'),
+        ('base_flood_risk', 'Flood Risk')
+    ]:
+        if col in gdf.columns:
+            display_cols.append(col)
+            col_names.append(display_name)
+    
+    if not display_cols:
+        st.warning("No displayable columns found in the dataset.")
+        return
+    
+    top_regions = gdf.nlargest(10, 'Predicted_Priority_Score')[display_cols].copy()
+    top_regions.columns = col_names
+    # Format numeric columns if they exist
+    if 'Normalized Score' in top_regions.columns:
+        top_regions['Normalized Score'] = top_regions['Normalized Score'].round(1)
+    if 'Pop. Density' in top_regions.columns:
+        top_regions['Pop. Density'] = top_regions['Pop. Density'].round(0).astype(int)
+    if 'Vulnerability' in top_regions.columns:
+        top_regions['Vulnerability'] = top_regions['Vulnerability'].round(2)
+    if 'Flood Risk' in top_regions.columns:
+        top_regions['Flood Risk'] = (top_regions['Flood Risk'] * 100).round(1)
     
     st.dataframe(
         top_regions,
@@ -456,11 +494,14 @@ def show_dashboard(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> None:  # ty
     
     with col2:
         st.markdown("### Vulnerability vs Priority Score")
+        # Find region name column for hover data
+        hover_cols = [col for col in ['ADM1_EN', 'NAME_1', 'NAME', 'COUNTRY', 'GID_1'] if col in gdf.columns]
+        
         fig = px.scatter(
             gdf,
             x='vulnerability_index',
             y='Priority_Score_Normalized',
-            hover_data=['ADM1_EN', 'NAME_1'],
+            hover_data=hover_cols if hover_cols else None,
             labels={'vulnerability_index': 'Vulnerability Index', 
                    'Priority_Score_Normalized': 'Priority Score (Normalized)'},
             color='Priority_Score_Normalized',
@@ -567,11 +608,14 @@ def show_analytics(gdf: gpd.GeoDataFrame, predictions: pd.Series) -> None:  # ty
             st.plotly_chart(fig, use_container_width=True)
         
         with col2:
+            # Find region name column for hover data
+            hover_cols = [col for col in ['ADM1_EN', 'NAME_1', 'NAME', 'COUNTRY', 'GID_1'] if col in gdf.columns]
+            
             fig = px.scatter(
                 gdf,
                 x=selected_feature,
                 y='Priority_Score_Normalized',
-                hover_data=['ADM1_EN', 'NAME_1'],
+                hover_data=hover_cols if hover_cols else None,
                 title=f"{selected_feature.replace('_', ' ').title()} vs Priority Score",
                 labels={selected_feature: selected_feature.replace('_', ' ').title(),
                        'Priority_Score_Normalized': 'Priority Score (Normalized)'}
