@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>GeoRelief-AI | Humanitarian Intelligence Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --glass: rgba(255, 255, 255, 0.95);
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        body { 
+            margin: 0; padding: 0; 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden;
+        }
+
+        #map { height: 100vh; width: 100%; z-index: 1; }
+
+        /* --- FLOATING DASHBOARD SIDEBAR --- */
+        .dashboard-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 320px;
+            background: var(--glass);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: 12px;
+            padding: 20px;
+            z-index: 1000;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .brand-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        .brand-header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+            margin: 0;
+        }
+
+        .brand-header i {
+            font-size: 24px;
+            color: var(--accent);
+            margin-right: 10px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .stat-value { font-size: 18px; font-weight: 700; color: #2c3e50; }
+        .stat-label { font-size: 12px; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .sdg-row { display: flex; gap: 8px; margin-top: 15px; justify-content: center; }
+        .sdg-icon { width: 40px; height: 40px; border-radius: 4px; opacity: 0.9; transition: 0.2s; }
+        .sdg-icon:hover { transform: scale(1.1); opacity: 1; }
+
+        /* --- LEGEND --- */
+        .legend {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            font-size: 12px;
+            line-height: 1.6;
+            min-width: 150px;
+        }
+        .legend h4 { margin: 0 0 8px; font-size: 14px; color: #444; }
+        .legend i { width: 16px; height: 16px; float: left; margin-right: 8px; opacity: 0.8; border-radius: 3px; }
+
+        /* --- CUSTOM POPUP --- */
+        .custom-popup .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            padding: 0;
+            overflow: hidden;
+        }
+        .custom-popup .leaflet-popup-content { margin: 0; width: 260px !important; }
+        
+        .popup-header {
+            background: var(--primary);
+            color: white;
+            padding: 10px 15px;
+            font-weight: 600;
+        }
+        
+        .popup-body { padding: 15px; }
+        .popup-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+        .popup-row:last-child { border-bottom: none; }
+        .popup-label { color: #666; font-size: 12px; }
+        .popup-val { font-weight: 600; font-size: 13px; color: #333; }
+
+        /* --- LOADING --- */
+        .loader-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+            transition: opacity 0.5s;
+        }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+    <div id="loader" class="loader-overlay">
+        <div style="text-align: center;">
+            <div class="spinner" style="margin: 0 auto 15px;"></div>
+            <div style="font-weight: 600; color: var(--primary);">Initializing AI Models...</div>
+        </div>
+    </div>
+
+    <div class="dashboard-panel">
+        <div class="brand-header">
+            <i class="fa-solid fa-earth-africa"></i>
+            <div>
+                <h1>GeoRelief-AI</h1>
+                <div style="font-size: 11px; color: #7f8c8d;">Humanitarian Intelligence System</div>
+            </div>
+        </div>
+
+        <p style="font-size: 13px; color: #555; line-height: 1.5;">
+            Real-time disaster prioritization engine using GloFAS hydrology, Sentinel-1 imagery, and vulnerability mapping.
+        </p>
+
+        <div style="margin-top: 20px;">
+            <div class="stat-card">
+                <div class="stat-value" id="total-pop">Calculating...</div>
+                <div class="stat-label">Total Population Analyzed</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #e74c3c;">
+                <div class="stat-value" id="high-risk-regions">0</div>
+                <div class="stat-label">Regions at Critical Risk</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #f39c12;">
+                <div class="stat-value" id="avg-vuln">0.00</div>
+                <div class="stat-label">Avg Vulnerability Index</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+            <div style="font-size: 11px; font-weight: 700; color: #95a5a6; margin-bottom: 10px; text-align: center;">ALIGNED WITH UN SDGs</div>
+            <div class="sdg-row">
+                <img src="https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-11.jpg" class="sdg-icon" title="Sustainable Cities">
+                <img src="https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-13.jpg" class="sdg-icon" title="Climate Action">
+                <img src="https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-06.jpg" class="sdg-icon" title="Clean Water">
+            </div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        // --- 1. MAP INITIALIZATION ---
+        // Use CartoDB Voyager for a cleaner, more professional "Data viz" look
+        const cleanMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        });
+
+        // Add Satellite option for context
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
+
+        const map = L.map('map', {
+            center: [-0.02, 37.9], // Kenya Center
+            zoom: 6,
+            layers: [cleanMap],
+            zoomControl: false // We will move this
+        });
+
+        L.control.layers({ "Analytic Map": cleanMap, "Satellite Imagery": satellite }).addTo(map);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+
+        // --- 2. COLOR SCALES ---
+        let minScore = 0;
+        let maxScore = 100;
+
+        function getColor(d) {
+            return d > 80 ? '#d73027' : // Very High (Red)
+                   d > 60 ? '#fc8d59' : // High (Orange)
+                   d > 40 ? '#fee08b' : // Medium (Yellow)
+                   d > 20 ? '#d9ef8b' : // Low (Light Green)
+                            '#91cf60';  // Very Low (Green)
+        }
+
+        function style(feature) {
+            return {
+                fillColor: getColor(feature.properties.Predicted_Priority_Score),
+                weight: 1,
+                opacity: 1,
+                color: 'white',
+                dashArray: '3',
+                fillOpacity: 0.7
+            };
+        }
+
+        // --- 3. DATA FETCHING & LOGIC ---
+        fetch('/api/get_priority_scores')
+            .then(res => res.json())
+            .then(data => {
+                // Hide Loader
+                document.getElementById('loader').style.opacity = '0';
+                setTimeout(() => { document.getElementById('loader').style.display = 'none'; }, 500);
+
+                // Process Stats for Dashboard
+                updateDashboard(data.features);
+
+                // Add GeoJSON
+                const layer = L.geoJSON(data, {
+                    style: style,
+                    onEachFeature: (feature, layer) => {
+                        const p = feature.properties;
+                        
+                        // Highlight on hover
+                        layer.on({
+                            mouseover: (e) => {
+                                const l = e.target;
+                                l.setStyle({ weight: 3, color: '#666', dashArray: '', fillOpacity: 0.9 });
+                                l.bringToFront();
+                            },
+                            mouseout: (e) => { layer.resetStyle(e.target); }
+                        });
+
+                        // Professional Popup
+                        const popupContent = `
+                            <div class="popup-header">${p.ADM1_EN || p.NAME_1 || 'Unknown Region'}</div>
+                            <div class="popup-body">
+                                <div class="popup-row">
+                                    <span class="popup-label">Priority Score</span>
+                                    <span class="popup-val" style="color: ${getColor(p.Predicted_Priority_Score || p.PriorityScore || 0)}">${(p.Predicted_Priority_Score || p.PriorityScore || 0).toFixed(2)}</span>
+                                </div>
+                                <div class="popup-row">
+                                    <span class="popup-label">Flood Risk (NGA)</span>
+                                    <span class="popup-val">${((p.base_flood_risk || 0) * 100).toFixed(1)}% Area</span>
+                                </div>
+                                <div class="popup-row">
+                                    <span class="popup-label">Pop. Density</span>
+                                    <span class="popup-val">${parseInt(p.population_density || 0).toLocaleString()} /km²</span>
+                                </div>
+                                <div class="popup-row">
+                                    <span class="popup-label">Vulnerability</span>
+                                    <span class="popup-val">${(p.vulnerability_index || 0).toFixed(2)}</span>
+                                </div>
+                                ${p.river_risk_score !== undefined ? `
+                                <div class="popup-row">
+                                    <span class="popup-label">River Risk</span>
+                                    <span class="popup-val">${(p.river_risk_score || 0).toFixed(2)}</span>
+                                </div>
+                                ` : ''}
+                                ${p.soil_saturation !== undefined ? `
+                                <div class="popup-row">
+                                    <span class="popup-label">Soil Saturation</span>
+                                    <span class="popup-val">${(p.soil_saturation || 0).toFixed(2)}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                        `;
+                        layer.bindPopup(popupContent, { className: 'custom-popup' });
+                    }
+                }).addTo(map);
+
+                map.fitBounds(layer.getBounds());
+                addLegend();
+            })
+            .catch(err => {
+                console.error("Error loading data:", err);
+                document.getElementById('loader').innerHTML = '<div style="text-align: center; color: #e74c3c;"><i class="fa-solid fa-triangle-exclamation"></i><br>Error loading data. Please check the console.</div>';
+            });
+
+        // --- 4. DASHBOARD ANALYTICS ---
+        function updateDashboard(features) {
+            let totalPop = 0;
+            let highRiskCount = 0;
+            let totalVuln = 0;
+
+            features.forEach(f => {
+                const p = f.properties;
+                // Estimate total pop based on density * area (or use existing total count if available)
+                // Just summing density here as a placeholder proxy for "Impact Scope"
+                totalPop += (p.population_density || 0); 
+                
+                const priorityScore = p.Predicted_Priority_Score || p.PriorityScore || 0;
+                if (priorityScore > 60) highRiskCount++;
+                totalVuln += (p.vulnerability_index || 0);
+            });
+
+            // Animate Numbers
+            document.getElementById('high-risk-regions').innerText = highRiskCount;
+            document.getElementById('avg-vuln').innerText = (totalVuln / features.length).toFixed(2);
+            document.getElementById('total-pop').innerText = features.length + " Regions";
+        }
+
+        // --- 5. LEGEND ---
+        function addLegend() {
+            const legend = L.control({position: 'bottomright'});
+            legend.onAdd = function (map) {
+                const div = L.DomUtil.create('div', 'legend');
+                const grades = [0, 20, 40, 60, 80];
+                const labels = ['Very Low', 'Low', 'Medium', 'High', 'Critical'];
+
+                div.innerHTML = '<h4>Priority Score</h4>';
+                for (let i = 0; i < grades.length; i++) {
+                    div.innerHTML +=
+                        '<i style="background:' + getColor(grades[i] + 1) + '"></i> ' +
+                        labels[i] + '<br>';
+                }
+                return div;
+            };
+            legend.addTo(map);
+        }
+    </script>
+</body>
+</html>
