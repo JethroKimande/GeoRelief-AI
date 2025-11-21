@@ -176,7 +176,7 @@ Interactive dashboard with analytics, maps, and visualizations:
 streamlit run streamlit_app.py
 ```
 
-Access the dashboard at `http://localhost:8501`
+Access the dashboard at `https://georelief-ai.streamlit.app/`
 
 **Features:**
 - 📊 Mission Control Dashboard with key metrics
@@ -333,3 +333,4 @@ We welcome contributions, particularly in adding new country data connectors or 
 ## 📧 Support
 
 For issues or questions, please open an issue on the project repository.
+
